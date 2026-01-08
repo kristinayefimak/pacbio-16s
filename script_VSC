@@ -45,6 +45,11 @@ qiime tools import \
   --o-visualization reads_qza/trimmed_reads.qzv
   
   4. DADA2 denoising
+mkdir -p dada2_output
+qiime dada2 denoise-single --i-demultiplexed-seqs reads_qza/trimmed_reads.qza --p-trunc-len 0 --p-n-threads 8 --p-n-reads-learn 100000 --p-max-ee 2 --o-table dada2_output/table.qza --o-representative-sequences dada2_output/rep-seqs.qza --o-denoising-stats dada2_output/denoising-stats.qza
+
+OR
+
 qiime dada2 denoise-single \
   --i-demultiplexed-seqs reads_qza/trimmed_reads.qza \
   --p-trunc-len 0 \
@@ -88,3 +93,46 @@ biom convert \
 find dada2_output_exported -maxdepth 2 -type f -print
 head -n 5 dada2_output_exported/denoising-stats/stats.tsv
 head -n 5 dada2_output_exported/rep-seqs/dna-sequences.fasta
+
+6. assign taxonomy
+time qiime feature-classifier classify-consensus-vsearch \
+  --i-query dada2_output/rep-seqs.qza \
+  --i-reference-reads /home/share/Q2_Silva99_DB/Silva99_16SRepSeq.qza \
+  --i-reference-taxonomy /home/share/Q2_Silva99_DB/Silva99_16STaxonomy.qza \
+  --p-maxaccepts 1 \
+  --p-strand both \
+  --p-threads 10 \
+  --verbose \
+  --output-dir taxa
+
+#Export taxonomy to readable format
+qiime tools export \
+  --input-path taxa/classification.qza \
+  --output-path taxa
+#creates taxa/taxonomy.tsv
+
+#check:
+head -n 10 taxa/taxonomy.tsv
+
+7. annotate feature table
+# Fix taxonomy header for BIOM
+sed -i \
+  -e '1 s/^Feature ID/#OTUID/' \
+  -e '1 s/^Taxon/taxonomy/' \
+  taxa/taxonomy.tsv
+
+# Add taxonomy to the feature table
+biom add-metadata \
+  -i dada2_output_exported/table/feature-table.biom \
+  -o dada2_output_exported/table/feature-table_w_tax.biom \
+  --observation-metadata-fp taxa/taxonomy.tsv \
+  --sc-separated taxonomy
+
+# Convert to readable TSV
+biom convert \
+  -i dada2_output_exported/table/feature-table_w_tax.biom \
+  -o dada2_output_exported/table/feature-table_w_tax.tsv \
+  --to-tsv \
+  --header-key taxonomy
+
+
