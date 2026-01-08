@@ -1,0 +1,90 @@
+cd /user/leuven/363/vsc36367/pacbiocheck
+conda activate qiime2-amplicon-2024.10
+
+mkdir -p raw_data_rc raw_data_cat trimmed_reads
+
+# 1) reverse-complement each input
+parallel -j 2 'zcat -f {} | seqtk seq -r - | gzip -c > raw_data_rc/{/.}_rc.fastq.gz' ::: ./*.fastq.gz
+
+# 1b) concatenate original + RC per file (decompress -> concat -> recompress once)
+for f in ./*.fastq.gz; do
+  b=${f%.gz}  # e.g. ./GC172404.fastq
+  cat <(zcat -f "$f") <(zcat -f "raw_data_rc/${b}_rc.fastq.gz") | gzip -c > "raw_data_cat/${b}_cat.fastq.gz"
+done
+
+# 2) trim primers (YOU must replace FWD_PRIMER and REV_PRIMER with real sequences)
+FWD_PRIMER='AGRGTTYGATYMTGGCTCAG'
+REV_PRIMER='AAGTCGTAACAAGGTARCY'
+
+parallel -j 2 'cutadapt -g "$FWD_PRIMER" -a "$REV_PRIMER" --discard-untrimmed --no-indels -j 1 -m 1200 -M 1800 -o trimmed_reads/{/.}_trim.fastq.gz {}' ::: raw_data_cat/*_cat.fastq.gz
+
+
+3. import sequences as a qiime2 artifact
+mkdir -p reads_qza
+
+echo "sample-id,absolute-filepath,direction" > trimmed_manifest.csv
+for f in trimmed_reads/*_trim.fastq*; do
+  sid=$(basename "$f")
+  sid=${sid%_trim.fastq*}
+  echo "${sid},$(readlink -f "$f"),forward" >> trimmed_manifest.csv
+done
+#inspect once: 
+column -t -s, trimmed_manifest.csv
+
+#import to qiime
+
+qiime tools import \
+  --type SampleData[SequencesWithQuality] \
+  --input-path trimmed_manifest.csv \
+  --output-path reads_qza/trimmed_reads.qza \
+  --input-format SingleEndFastqManifestPhred33
+
+  #check
+  qiime demux summarize \
+  --i-data reads_qza/trimmed_reads.qza \
+  --o-visualization reads_qza/trimmed_reads.qzv
+  
+  4. DADA2 denoising
+qiime dada2 denoise-single \
+  --i-demultiplexed-seqs reads_qza/trimmed_reads.qza \
+  --p-trunc-len 0 \
+  --p-n-threads 8 \
+  --p-n-reads-learn 100000 \
+  --p-max-ee 2 \
+  --o-table dada2_output/table.qza \
+  --o-representative-sequences dada2_output/rep-seqs.qza \
+  --o-denoising-stats dada2_output/denoising-stats.qza
+
+#check
+
+qiime metadata tabulate \
+  --m-input-file dada2_output/denoising-stats.qza \
+  --o-visualization dada2_output/denoising-stats.qzv
+
+5. convert artifact to readable format
+ mkdir -p dada2_output_exported
+
+# 1) Export denoising stats (creates a .tsv)
+qiime tools export \
+  --input-path dada2_output/denoising-stats.qza \
+  --output-path dada2_output_exported/denoising-stats
+
+# 2) Export feature table (creates feature-table.biom)
+qiime tools export \
+  --input-path dada2_output/table.qza \
+  --output-path dada2_output_exported/table
+
+# 3) Export representative sequences (creates dna-sequences.fasta)
+qiime tools export \
+  --input-path dada2_output/rep-seqs.qza \
+  --output-path dada2_output_exported/rep-seqs
+
+# 4) Convert BIOM -> TSV (human readable)
+biom convert \
+  -i dada2_output_exported/table/feature-table.biom \
+  -o dada2_output_exported/table/feature-table.tsv \
+  --to-tsv
+#check
+find dada2_output_exported -maxdepth 2 -type f -print
+head -n 5 dada2_output_exported/denoising-stats/stats.tsv
+head -n 5 dada2_output_exported/rep-seqs/dna-sequences.fasta
