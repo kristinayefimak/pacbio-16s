@@ -56,7 +56,7 @@ mkdir -p dada2_output
 #SBATCH --output=logs/dada2_%j.out
 #SBATCH --error=logs/dada2_%j.err
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=VUL_HIER_JE_EMAIL@kuleuven.be
+#SBATCH --mail-user=kristina.yefimak@kuleuven.be
 
 set -euo pipefail
 
