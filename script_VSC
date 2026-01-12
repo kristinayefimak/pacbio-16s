@@ -47,7 +47,41 @@ qiime tools import \
 HIER GERAAKT!!!!!!!!!!!!!!!!!!!!!!!
   4. DADA2 denoising
 mkdir -p dada2_output
-qiime dada2 denoise-single --i-demultiplexed-seqs reads_qza/trimmed_reads.qza --p-trunc-len 0 --p-n-threads 8 --p-n-reads-learn 100000 --p-max-ee 2 --o-table dada2_output/table.qza --o-representative-sequences dada2_output/rep-seqs.qza --o-denoising-stats dada2_output/denoising-stats.qza
+#!/bin/bash
+#SBATCH --job-name=dada2
+#SBATCH --account=lkulak_daphnia_gp
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=08:00:00
+#SBATCH --output=logs/dada2_%j.out
+#SBATCH --error=logs/dada2_%j.err
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=VUL_HIER_JE_EMAIL@kuleuven.be
+
+set -euo pipefail
+
+cd "$SLURM_SUBMIT_DIR"
+
+# Conda init (batch-proof)
+source /data/leuven/363/vsc36367/miniconda3/etc/profile.d/conda.sh
+conda activate qiime2-amplicon-2025.4
+
+# Keep temp files in project (HPC-friendly)
+mkdir -p logs qiime2_tmp dada2_output
+export TMPDIR="$PWD/qiime2_tmp"
+export TMP="$PWD/qiime2_tmp"
+export TEMP="$PWD/qiime2_tmp"
+
+# Prevent R/BLAS thread oversubscription
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
+# DADA2 (one line to avoid line-continuation issues)
+qiime dada2 denoise-single --i-demultiplexed-seqs reads_qza/trimmed_reads.qza --p-trunc-len 0 --p-n-threads 8 --p-n-reads-learn 100000 --p-max-ee 2 --o-table dada2_output/table.qza --o-representative-sequences dada2_output/rep-seqs.qza --o-denoising-stats dada2_output/denoising-stats.qza --verbose
+
 
 OR
 
