@@ -1,5 +1,5 @@
 cd /user/leuven/363/vsc36367/pacbiocheck
-conda activate qiime2-amplicon-2024.10
+conda activate qiime2-amplicon-2025.4
 
 mkdir -p raw_data_rc raw_data_cat trimmed_reads
 
