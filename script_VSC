@@ -44,7 +44,6 @@ qiime tools import \
   --i-data reads_qza/trimmed_reads.qza \
   --o-visualization reads_qza/trimmed_reads.qzv
 
-HIER GERAAKT!!!!!!!!!!!!!!!!!!!!!!!
   4. DADA2 denoising
 mkdir -p dada2_output
 #!/bin/bash
@@ -105,49 +104,51 @@ qiime metadata tabulate \
  mkdir -p dada2_output_exported
 
 # 1) Export denoising stats (creates a .tsv)
-qiime tools export \
-  --input-path dada2_output/denoising-stats.qza \
-  --output-path dada2_output_exported/denoising-stats
+qiime tools export --input-path dada2_output/denoising-stats.qza --output-path dada2_output_exported/denoising-stats
+
 
 # 2) Export feature table (creates feature-table.biom)
-qiime tools export \
-  --input-path dada2_output/table.qza \
-  --output-path dada2_output_exported/table
+qiime tools export --input-path dada2_output/table.qza --output-path dada2_output_exported/table
 
 # 3) Export representative sequences (creates dna-sequences.fasta)
-qiime tools export \
-  --input-path dada2_output/rep-seqs.qza \
-  --output-path dada2_output_exported/rep-seqs
+qiime tools export --input-path dada2_output/rep-seqs.qza --output-path dada2_output_exported/rep-seqs
+
 
 # 4) Convert BIOM -> TSV (human readable)
-biom convert \
-  -i dada2_output_exported/table/feature-table.biom \
-  -o dada2_output_exported/table/feature-table.tsv \
-  --to-tsv
+biom convert -i dada2_output_exported/table/feature-table.biom -o dada2_output_exported/table/feature-table.tsv --to-tsv
+
 #check
-find dada2_output_exported -maxdepth 2 -type f -print
-head -n 5 dada2_output_exported/denoising-stats/stats.tsv
-head -n 5 dada2_output_exported/rep-seqs/dna-sequences.fasta
+ls dada2_output_exported
+head dada2_output_exported/denoising-stats/*.tsv
+head dada2_output_exported/table/feature-table.tsv
+head dada2_output_exported/rep-seqs/dna-sequences.fasta
+
 
 6. assign taxonomy
-time qiime feature-classifier classify-consensus-vsearch \
-  --i-query dada2_output/rep-seqs.qza \
-  --i-reference-reads /home/share/Q2_Silva99_DB/Silva99_16SRepSeq.qza \
-  --i-reference-taxonomy /home/share/Q2_Silva99_DB/Silva99_16STaxonomy.qza \
-  --p-maxaccepts 1 \
-  --p-strand both \
-  --p-threads 10 \
-  --verbose \
-  --output-dir taxa
+#first need to make a silva classifier: 
+1️⃣ Download SILVA 138.2 SSU NR99 (ONE LI
+qiime rescript get-silva-data --p-version 138.2 --p-target SSURef_NR99 --p-include-species-labels --o-silva-sequences silva-138-2-seqs.qza --o-silva-taxonomy silva-138-2-tax.qza
+2️⃣ Cull low-quality/problematic sequences (ONE LINE)
+qiime rescript cull-seqs --i-sequences silva-138-2-seqs.qza --p-num-degenerates 1 --p-homopolymer-length 12 --p-n-jobs 8 --o-clean-sequences silva-138-2-seqs-cull.qza
+3️⃣ Filter sequences by taxonomy & length (ONE LINE)
+qiime rescript filter-seqs-length-by-taxon --i-sequences silva-138-2-seqs-cull.qza --i-taxonomy silva-138-2-tax.qza --p-labels Archaea Bacteria --p-min-lens 1200 1200 --p-max-lens 2000 2000 --o-filtered-seqs silva-138-2-filtered.qza --o-discarded-seqs silva-138-2-discarded.qza
+4️⃣ Dereplicate reference sequences (ONE LINE)
+qiime rescript dereplicate --i-sequences silva-138-2-filtered.qza --i-taxa silva-138-2-tax.qza --p-rank-handles silva --p-mode uniq --o-dereplicated-sequences silva-138-2-derep-seqs.qza --o-dereplicated-taxa silva-138-2-derep-tax.qza
+5️⃣ Train the Naive Bayes classifier (ONE LINE)
+qiime feature-classifier fit-classifier-naive-bayes --i-reference-reads silva-138-2-derep-seqs.qza --i-reference-taxonomy silva-138-2-derep-tax.qza --o-classifier silva-138-2-nb-classifier.qza
+6️⃣ Sanity check (ONE LINE)
+qiime tools peek silva-138-2-nb-classifier.qza
+
+
+time qiime feature-classifier classify-sklearn --i-classifier silva-138-1-ssu-nr99-classifier.qza --i-reads dada2_output/rep-seqs.qza --p-n-jobs 8 --verbose --output-dir taxa
 
 #Export taxonomy to readable format
-qiime tools export \
-  --input-path taxa/classification.qza \
-  --output-path taxa
-#creates taxa/taxonomy.tsv
+qiime tools export --input-path taxa/classification.qza --output-path taxa
+
 
 #check:
-head -n 10 taxa/taxonomy.tsv
+head -n 5 taxa/taxonomy.tsv
+
 
 7. annotate feature table
 # Fix taxonomy header for BIOM
