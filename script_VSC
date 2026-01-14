@@ -141,17 +141,17 @@ qiime rescript dereplicate --i-sequences silva-138-2-filtered.qza --i-taxa silva
 qiime feature-classifier fit-classifier-naive-bayes --i-reference-reads silva-138-2-derep-seqs.qza --i-reference-taxonomy silva-138-2-derep-tax.qza --o-classifier silva-138-2-nb-classifier.qza
 6️⃣ Sanity check (ONE LINE)
 qiime tools peek silva-138-2-nb-classifier.qza
+#untill here wrong
 
 GET THE SILVA FROM/ Download the correct SILVA classifier (sklearn 1.4.2):
-rm -f silva-classifier.qza
-wget -O silva-138-99-nb-classifier.qza https://data.qiime2.org/classifiers/sklearn-1.4.2/silva/silva-138-99-nb-classifier.qza
+wget -O silva-138-99-nb-classifier.qza https://s3-us-west-2.amazonaws.com/qiime2-data/classifiers/sklearn-1.4.2/silva/silva-138-99-nb-classifier.qza
+unzip -t silva-138-99-nb-classifier.qza
 #Verify it’s a real QIIME 2 artifact
 qiime tools peek silva-138-99-nb-classifier.qza
 #Classify your ASVs
-mkdir -p taxa && time qiime feature-classifier classify-sklearn --i-classifier silva-138-99-nb-classifier.qza --i-reads dada2_output/rep-seqs.qza --p-n-jobs 8 --verbose --output-dir taxa
+mkdir -p taxa && qiime feature-classifier classify-sklearn --i-classifier silva-138-99-nb-classifier.qza --i-reads dada2_output/rep-seqs.qza --p-n-jobs 8 --o-classification taxa/classification.qza --verbose
 #Export readable taxonomy
 qiime tools export --input-path taxa/classification.qza --output-path taxa
-
 
 
 #check:
@@ -159,25 +159,18 @@ head -n 5 taxa/taxonomy.tsv
 
 
 7. annotate feature table
-# Fix taxonomy header for BIOM
-sed -i \
-  -e '1 s/^Feature ID/#OTUID/' \
-  -e '1 s/^Taxon/taxonomy/' \
-  taxa/taxonomy.tsv
+1️⃣ Fix taxonomy header for BIOM
+sed -i -e '1 s/^Feature ID/#OTUID/' -e '1 s/^Taxon/taxonomy/' taxa/taxonomy.tsv
 
-# Add taxonomy to the feature table
-biom add-metadata \
-  -i dada2_output_exported/table/feature-table.biom \
-  -o dada2_output_exported/table/feature-table_w_tax.biom \
-  --observation-metadata-fp taxa/taxonomy.tsv \
-  --sc-separated taxonomy
+2️⃣ Add taxonomy metadata to BIOM table
+biom add-metadata -i dada2_output_exported/table/feature-table.biom -o dada2_output_exported/table/feature-table_w_tax.biom --observation-metadata-fp taxa/taxonomy.tsv --sc-separated taxonomy
 
-# Convert to readable TSV
-biom convert \
-  -i dada2_output_exported/table/feature-table_w_tax.biom \
-  -o dada2_output_exported/table/feature-table_w_tax.tsv \
-  --to-tsv \
-  --header-key taxonomy
+3️⃣ Convert to TSV (human readable)
+biom convert -i dada2_output_exported/table/feature-table_w_tax.biom -o dada2_output_exported/table/feature-table_w_tax.tsv --to-tsv --header-key taxonomy
+
+Quick check
+head -n 5 dada2_output_exported/table/feature-table_w_tax.tsv
+
 
 #COMPARE WHICH OF THE 2 SAMPLES HAS MORE DIFFERENT TAXA
 -Does one kit recover higher richness / diversity?
@@ -186,25 +179,23 @@ biom convert \
 
 3️⃣ Step 1 — Generate alpha diversity in QIIME 2
 #Pick a depth that both samples support:
-qiime diversity alpha \
-  --i-table dada2_output/table.qza \
-  --p-metric observed_features \
-  --o-alpha-diversity observed_features.qza
-#Also compute Shannon (accounts for evenness):
+qiime feature-table summarize --i-table dada2_output/table.qza --o-visualization dada2_output/table.qzv
+#Then run rarefaction with a chosen depth (example uses 20000—replace if needed):
+qiime diversity alpha-rarefaction --i-table dada2_output/table.qza --p-max-depth 20000 --p-steps 20 --p-metrics observed_features --p-metrics shannon --o-visualization alpha_rarefaction.qzv
 
-qiime diversity alpha \
-  --i-table dada2_output/table.qza \
-  --p-metric shannon \
-  --o-alpha-diversity shannon.qza
+#alpha:
+qiime diversity alpha --i-table dada2_output/table.qza --p-metric observed_features --o-alpha-diversity observed_features.qza
+
+#Also compute Shannon (accounts for evenness):
+qiime diversity alpha --i-table dada2_output/table.qza --p-metric shannon --o-alpha-diversity shannon.qza
+
 #Export:
 
-qiime tools export \
-  --input-path observed_features.qza \
-  --output-path exported_alpha
+mkdir -p exported_alpha && qiime tools export --input-path observed_features.qza --output-path exported_alpha/observed_features
+qiime tools export --input-path shannon.qza --output-path exported_alpha/shannon
 
-qiime tools export \
-  --input-path shannon.qza \
-  --output-path exported_alpha
+
+
 
 RAREFACTION CURVES
 qiime diversity alpha-rarefaction \
