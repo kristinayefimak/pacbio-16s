@@ -1,4 +1,6 @@
 cd /user/leuven/363/vsc36367/pacbiocheck
+NOTE: BETTER TO WORK ON LOCAL OTHERWISE QUOTA GETS EXCEEDED cd /local_scratch/vsc36367_pacbiocheck
+
 conda activate qiime2-amplicon-2025.4
 
 mkdir -p raw_data_rc raw_data_cat trimmed_reads
