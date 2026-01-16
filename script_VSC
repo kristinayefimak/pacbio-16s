@@ -181,20 +181,23 @@ head -n 5 dada2_output_exported/table/feature-table_w_tax.tsv
 
 3️⃣ Step 1 — Generate alpha diversity in QIIME 2
 #Pick a depth that both samples support:
-qiime feature-table summarize --i-table dada2_output/table.qza --o-visualization dada2_output/table.qzv
+qiime feature-table summarize --i-table table.qza --o-visualization table.qzv
 #Then run rarefaction with a chosen depth (example uses 20000—replace if needed):
-qiime diversity alpha-rarefaction --i-table dada2_output/table.qza --p-max-depth 20000 --p-steps 20 --p-metrics observed_features --p-metrics shannon --o-visualization alpha_rarefaction.qzv
+qiime diversity alpha-rarefaction --i-table table.qza --p-max-depth 20000 --p-steps 20 --p-metrics observed_features --p-metrics shannon --o-visualization alpha_rarefaction.qzv
 
 #alpha:
-qiime diversity alpha --i-table dada2_output/table.qza --p-metric observed_features --o-alpha-diversity observed_features.qza
+qiime diversity alpha --i-table table.qza --p-metric observed_features --o-alpha-diversity observed_features.qza
 
 #Also compute Shannon (accounts for evenness):
-qiime diversity alpha --i-table dada2_output/table.qza --p-metric shannon --o-alpha-diversity shannon.qza
+qiime diversity alpha --i-table table.qza --p-metric shannon --o-alpha-diversity shannon.qza
 
 #Export:
 
 mkdir -p exported_alpha && qiime tools export --input-path observed_features.qza --output-path exported_alpha/observed_features
+
 qiime tools export --input-path shannon.qza --output-path exported_alpha/shannon
+
+##=> download the files via: on demand:files=> then go to qiime2.org and open te files there to se the results, then you can go to R for visualization!
 
 
 
